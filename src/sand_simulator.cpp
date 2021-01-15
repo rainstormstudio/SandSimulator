@@ -23,7 +23,7 @@ class App : public R2DEngine {
     std::vector<std::vector<float>> massBuffer;
     const float maxMass = 1.0;
     const float maxCompress = 0.02;
-    const float minMass = 0.0001;
+    const float minMass = 0.001;
     const float minFlow = 0.01;
     const float maxSpeed = 1.0;
 
@@ -129,8 +129,8 @@ class App : public R2DEngine {
         }
     }
 public:
-    const uint32_t mapWidth = 80;
-    const uint32_t mapHeight = 60;
+    const uint32_t mapWidth = 80 * 2;
+    const uint32_t mapHeight = 60 * 2;
 
     bool onCreate() override {
         windowTitle = "Sand Simulator";
@@ -161,7 +161,7 @@ public:
     bool onUpdate(double deltaTime) override {
 
         tick = false;
-        time += deltaTime * 50;
+        time += deltaTime * 250;
         if (time >= 1.0) {
             tick = true;
             time = 0.0;
@@ -239,7 +239,7 @@ public:
                         break;
                     }
                     case WATER: {
-                        drawPoint({x, y}, {66, 155, 245, constrain(255 * mass[y][x], 0, 255)});
+                        drawPoint({x, y}, {66, 155, 245});
                         break;
                     }
                 }
