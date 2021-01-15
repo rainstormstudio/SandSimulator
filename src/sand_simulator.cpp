@@ -18,6 +18,15 @@ class App : public R2DEngine {
     std::vector<std::vector<CellID>> map;
     std::vector<std::vector<CellID>> mapBuffer;
 
+    // water
+    std::vector<std::vector<float>> mass;
+    std::vector<std::vector<float>> massBuffer;
+    const float maxMass = 1.0;
+    const float maxCompress = 0.02;
+    const float minMass = 0.0001;
+    const float minFlow = 0.01;
+    const float maxSpeed = 1.0;
+
     void update_wall(int x, int y) {
         mapBuffer[y][x] = WALL;
     }
@@ -37,24 +46,86 @@ class App : public R2DEngine {
         }
     }
 
-    void update_water(int x, int y) {
-        if (map[y + 1][x] == AIR) {
-            mapBuffer[y + 1][x] = WATER;
-            map[y][x] = AIR;
-        } else if (map[y + 1][x - 1] == AIR) {
-            mapBuffer[y + 1][x - 1] = WATER;
-            map[y][x] = AIR;
-        } else if (map[y + 1][x + 1] == AIR) {
-            mapBuffer[y + 1][x + 1] = WATER;
-            map[y][x] = AIR;
-        } else if (map[y][x - 1] == AIR) {
-            mapBuffer[y][x - 1] = WATER;
-            map[y][x] = AIR;
-        } else if (map[y][x + 1] == AIR) {
-            mapBuffer[y][x + 1] = WATER;
-            map[y][x] = AIR;
+    float calcFlow(float totalMass) {
+        if (totalMass <= 1.0) {
+            return 1;
+        } else if (totalMass < 2 * maxMass + maxCompress) {
+            return (maxMass * maxMass + totalMass * maxCompress) / (maxMass + maxCompress);
         } else {
-            mapBuffer[y][x] = WATER;
+            return (totalMass + maxCompress) / 2;
+        }
+    }
+
+    inline float constrain(float x, float min, float max) {
+        if (x < min) {
+            return min;
+        } else if (x > max) {
+            return max;
+        } else {
+            return x;
+        }
+    }
+
+    void update_water(int x, int y) {
+        float flow = 0.0;
+        float remainingMass = mass[y][x];
+        if (remainingMass <= 0.0) return;
+
+        // below
+        if (map[y + 1][x] == AIR || map[y + 1][x] == WATER) {
+            flow = calcFlow(remainingMass + mass[y + 1][x]) - mass[y + 1][x];
+            if (flow > minFlow) {
+                flow *= 0.5;
+            }
+            flow = constrain(flow, 0, std::min(maxSpeed, remainingMass));
+            massBuffer[y][x] -= flow;
+            massBuffer[y + 1][x] += flow;
+            remainingMass -= flow;
+        }
+
+        if (remainingMass <= 0.0) return;
+
+        // left
+        if (map[y][x - 1] == AIR || map[y][x - 1] == WATER) {
+            flow = (mass[y][x] - mass[y][x - 1]) / 4.0;
+            if (flow > minFlow) {
+                flow *= 0.5;
+            }
+            flow = constrain(flow, 0, remainingMass);
+
+            massBuffer[y][x] -= flow;
+            massBuffer[y][x - 1] += flow;
+            remainingMass -= flow;
+        }
+
+        if (remainingMass <= 0.0) return;
+
+        // right
+        if (map[y][x + 1] == AIR || map[y][x + 1] == WATER) {
+            flow = (mass[y][x] - mass[y][x + 1]) / 4.0;
+            if (flow > minFlow) {
+                flow *= 0.5;
+            }
+            flow = constrain(flow, 0, remainingMass);
+
+            massBuffer[y][x] -= flow;
+            massBuffer[y][x] += flow;
+            remainingMass -= flow;
+        }
+
+        if (remainingMass <= 0.0) return;
+
+        // up
+        if (map[y - 1][x] == AIR || map[y - 1][x] == WATER) {
+            flow = remainingMass - calcFlow(remainingMass + mass[y - 1][x]);
+            if (flow > minFlow) {
+                flow *= 0.5;
+            }
+            flow = constrain(flow, 0, std::min(maxSpeed, remainingMass));
+
+            massBuffer[y][x] -= flow;
+            massBuffer[y - 1][x] += flow;
+            remainingMass -= flow;
         }
     }
 public:
@@ -65,15 +136,21 @@ public:
         windowTitle = "Sand Simulator";
         map = std::vector<std::vector<CellID>>(mapHeight);
         mapBuffer = std::vector<std::vector<CellID>>(mapHeight);
+        mass = std::vector<std::vector<float>>(mapHeight);
+        massBuffer = std::vector<std::vector<float>>(mapHeight);
         for (int y = 0; y < mapHeight; y ++) {
             map[y] = std::vector<CellID>(mapWidth);
             mapBuffer[y] = std::vector<CellID>(mapWidth);
+            mass[y] = std::vector<float>(mapWidth);
+            massBuffer[y] = std::vector<float>(mapWidth);
             for (int x = 0; x < mapWidth; x ++) {
                 map[y][x] = AIR;
                 if (y == mapHeight - 1 || x == 0 || x == mapWidth - 1) {
                     map[y][x] = WALL;
                 }
                 mapBuffer[y][x] = AIR;
+                mass[y][x] = 0.0;
+                massBuffer[y][x] = 0.0;
             }
         }
         time = 0.0;
@@ -91,13 +168,14 @@ public:
         }
 
         if (getMouseState(GLFW_MOUSE_BUTTON_RIGHT) == PRESS) {
-            map[mousePosY][mousePosX] = WALL;
+            map[mousePosY][mousePosX] = AIR;
             //tick = true;
         } else if (getMouseState(GLFW_MOUSE_BUTTON_LEFT) == PRESS) {
             map[mousePosY][mousePosX] = SAND;
             //tick = true;
         } else if (getMouseState(GLFW_MOUSE_BUTTON_MIDDLE) == PRESS) {
             map[mousePosY][mousePosX] = WATER;
+            mass[mousePosY][mousePosX] = 1.0;
             //tick = true;
         }
 
@@ -129,7 +207,19 @@ public:
                     }
                 }
             }
+            for (int y = 0; y < mapHeight; y ++) {
+                for (int x = 0; x < mapWidth; x ++) {
+                    mass[y][x] = massBuffer[y][x];
+                    if (mapBuffer[y][x] == WALL) continue;
+                    if (mass[y][x] > minMass) {
+                        mapBuffer[y][x] = WATER;
+                    } else {
+                        //mapBuffer[y][x] = AIR;
+                    }
+                }
+            }
         }
+
 
         for (int y = 0; y < mapHeight; y ++) {
             for (int x = 0; x < mapWidth; x ++) {
