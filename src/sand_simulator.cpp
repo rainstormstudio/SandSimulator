@@ -85,6 +85,21 @@ class App : public R2DEngine {
 
         if (remainingMass <= 0.0) return;
 
+        // right
+        if (map[y][x + 1] == AIR || map[y][x + 1] == WATER) {
+            flow = (mass[y][x] - mass[y][x + 1]) / 4.0;
+            if (flow > minFlow) {
+                flow *= 0.5;
+            }
+            flow = constrain(flow, 0, remainingMass);
+
+            massBuffer[y][x] -= flow;
+            massBuffer[y][x + 1] += flow;
+            remainingMass -= flow;
+        }
+
+        if (remainingMass <= 0.0) return;
+
         // left
         if (map[y][x - 1] == AIR || map[y][x - 1] == WATER) {
             flow = (mass[y][x] - mass[y][x - 1]) / 4.0;
@@ -95,21 +110,6 @@ class App : public R2DEngine {
 
             massBuffer[y][x] -= flow;
             massBuffer[y][x - 1] += flow;
-            remainingMass -= flow;
-        }
-
-        if (remainingMass <= 0.0) return;
-
-        // right
-        if (map[y][x + 1] == AIR || map[y][x + 1] == WATER) {
-            flow = (mass[y][x] - mass[y][x + 1]) / 4.0;
-            if (flow > minFlow) {
-                flow *= 0.5;
-            }
-            flow = constrain(flow, 0, remainingMass);
-
-            massBuffer[y][x] -= flow;
-            massBuffer[y][x] += flow;
             remainingMass -= flow;
         }
 
@@ -168,7 +168,7 @@ public:
         }
 
         if (getMouseState(GLFW_MOUSE_BUTTON_RIGHT) == PRESS) {
-            map[mousePosY][mousePosX] = AIR;
+            map[mousePosY][mousePosX] = WALL;
             //tick = true;
         } else if (getMouseState(GLFW_MOUSE_BUTTON_LEFT) == PRESS) {
             map[mousePosY][mousePosX] = SAND;
@@ -183,6 +183,7 @@ public:
             for (int y = 0; y < mapHeight; y ++) {
                 for (int x = 0; x < mapWidth; x ++) {
                     mapBuffer[y][x] = AIR;
+                    massBuffer[y][x] = mass[y][x];
                 }
             }
             for (int y = mapHeight - 1; y >= 0; y --) {
@@ -213,8 +214,6 @@ public:
                     if (mapBuffer[y][x] == WALL) continue;
                     if (mass[y][x] > minMass) {
                         mapBuffer[y][x] = WATER;
-                    } else {
-                        //mapBuffer[y][x] = AIR;
                     }
                 }
             }
@@ -240,7 +239,7 @@ public:
                         break;
                     }
                     case WATER: {
-                        drawPoint({x, y}, {66, 155, 245});
+                        drawPoint({x, y}, {66, 155, 245, constrain(255 * mass[y][x], 0, 255)});
                         break;
                     }
                 }
