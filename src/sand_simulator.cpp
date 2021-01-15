@@ -2,6 +2,8 @@
 #include "R2DEngine.hpp"
 
 class App : public R2DEngine {
+    GLint uTime_loc;
+
     double time;
     bool tick;
 
@@ -32,15 +34,15 @@ class App : public R2DEngine {
     }
 
     void update_sand(int x, int y) {
-        if (map[y + 1][x] == AIR) {
+        if (map[y + 1][x] != SAND && map[y + 1][x] != WALL) {
             mapBuffer[y + 1][x] = SAND;
-            map[y][x] = AIR;
-        } else if (map[y + 1][x - 1] == AIR) {
+            map[y][x] = map[y + 1][x];
+        } else if (map[y + 1][x - 1] != SAND && map[y + 1][x - 1] != WALL) {
             mapBuffer[y + 1][x - 1] = SAND;
-            map[y][x] = AIR;
-        } else if (map[y + 1][x + 1] == AIR) {
+            map[y][x] = map[y + 1][x - 1];
+        } else if (map[y + 1][x + 1] != SAND && map[y + 1][x + 1] != WALL) {
             mapBuffer[y + 1][x + 1] = SAND;
-            map[y][x] = AIR;
+            map[y][x] = map[y + 1][x + 1];
         } else {
             mapBuffer[y][x] = SAND;
         }
@@ -155,13 +157,22 @@ public:
         }
         time = 0.0;
         tick = false;
+
+        uTime_loc = glGetUniformLocation(shader, "uTime");
+
         return true;
     }
 
     bool onUpdate(double deltaTime) override {
+        static float uTime = 0.0f;
+        uTime += deltaTime * 0.002;
+        glUniform1f(uTime_loc, uTime);
+        std::cerr << '\r' << uTime << std::flush;
 
         tick = false;
         time += deltaTime * 250;
+
+
         if (time >= 1.0) {
             tick = true;
             time = 0.0;
@@ -211,7 +222,7 @@ public:
             for (int y = 0; y < mapHeight; y ++) {
                 for (int x = 0; x < mapWidth; x ++) {
                     mass[y][x] = massBuffer[y][x];
-                    if (mapBuffer[y][x] == WALL) continue;
+                    if (mapBuffer[y][x] == WALL || mapBuffer[y][x] == SAND) continue;
                     if (mass[y][x] > minMass) {
                         mapBuffer[y][x] = WATER;
                     }
@@ -239,7 +250,7 @@ public:
                         break;
                     }
                     case WATER: {
-                        drawPoint({x, y}, {66, 155, 245});
+                        drawPoint({x, y}, {0, 255, 255});
                         break;
                     }
                 }
@@ -252,7 +263,7 @@ public:
 int main() {
     App app;
     if (app.construct(1280, 720, app.mapWidth, app.mapHeight)) {
-        app.init();
+        app.init("./shaders/final.vsh", "./shaders/final.fsh");
     }
 
     return 0;
